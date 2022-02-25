@@ -14,7 +14,7 @@ This repo could also serve as a minimal example of adding a custom congestion co
 Get ns-3 (version 3.35) source:
 
 ```bash
-# be sure you are at the root dir of this repo, containing this README.md
+# make sure you're at the root dir of this repo, which contains this README.md
 wget https://www.nsnam.org/releases/ns-allinone-3.35.tar.bz2
 tar xjf ns-allinone-3.35.tar.bz2
 ```
@@ -27,15 +27,10 @@ cd ns-allinone-3.35/ns-3.35
 ./waf build
 ```
 
-Test ns-3 build:
+Test ns-3 build (should see all PASSED and some skipped):
 
 ```bash
 ./test.py
-```
-
-Return to the root directory of this repo:
-
-```bash
 cd ../..
 ```
 
