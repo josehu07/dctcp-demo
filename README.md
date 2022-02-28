@@ -6,35 +6,20 @@ This is a minimal implementation of the DCTCP congestion control protocol ([SIGC
 
 It turns out that ns-3.35 already ships with a default implementation of DCTCP. This repo holds my own implementation based on my understanding of the original SIGCOMM paper. I then compare the performance results to both the ns-3 DCTCP implementation (through simulation) and the native Linux kernel DCTCP implementation (through direct code execution, DCE).
 
-This repo could also serve as a minimal example of adding a custom congestion control algoirthm implementation into ns-3's TCP stack model.
+
+## Content
+
+Due to the design of ns-3, all new components and simulation scripts must be put within the `ns-3.35` folder, be built by the default `./waf` toolchain, and be run with `./waf --run`. Hence, ns-3.35 source code is included in-place. I added my new DCTCP component into the source folder and modified the build scripts to involve the new stuff.
+
+Files added or modified:
+
+* `ns-3.35/scratch/tcp-dctcp-my-perf.cc`: TODO
+* `ns-3.35/src/internet/model/tcp-dctcp-my.cc`: my implementation of DCTCP, which is given the TypeId `TcpDctcpMy`
+* `ns-3.35/src/internet/model/tcp-dctcp-my.h`: a duplicate of `tcp-dctcp.h`
+* `ns-3.35/src/internet/test/tcp-dctcp-my-test.cc`: a duplicate of `tcp-dctcp.test.cc`
+* `ns-3.35/src/internet/wscript`: modified to involve `TcpDctcpMy` stuff when building
 
 
-## ns-3 Setup
-
-Get ns-3 (version 3.35) source:
-
-```bash
-# make sure you're at the root dir of this repo, which contains this README.md
-wget https://www.nsnam.org/releases/ns-allinone-3.35.tar.bz2
-tar xjf ns-allinone-3.35.tar.bz2
-```
-
-Build ns-3's default components:
-
-```bash
-cd ns-allinone-3.35/ns-3.35
-./waf configure --enable-examples --enable-tests
-./waf build
-```
-
-Test ns-3 build (should see all PASSED and some skipped):
-
-```bash
-./test.py
-cd ../..
-```
-
-
-## TODO
+## Usage
 
 TODO

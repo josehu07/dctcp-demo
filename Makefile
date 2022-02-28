@@ -1,29 +1,22 @@
-# Just a dummy Makefile that copies things into ns-3.35/scratch and uses
-# the built-in waf toolchain to build and run the scripts.
+NSDIR=ns-3.35
 
 
-NSDIR=ns-allinone-3.35/ns-3.35
+.PHONY: all build clean test perf
 
-EXECS=dctco-sim
-
-
-
-.PHONY: all cpin build clean run
+all: build
 
 
-all: cpin build
-
-
-cpin:
-	$(foreach src,$(SRCS),cp $(src) $(NSDIR)/scratch/;)
-
-build: cpin
-	cd $(NSDIR) && ./waf build
-
+build:
+	cd $(NSDIR) && \
+		./waf configure --enable-examples --enable-tests -d release && \
+		./waf build
 
 clean:
-	rm -rf $(NSDIR)/build/scratch/$(BIN)*
+	rm -rf $(NSDIR)/build
 
 
-run:
-	cd $(NSDIR) && ./waf --run scratch/$(BIN)
+test:
+	echo "Test"
+
+perf:
+	echo "Perf"
