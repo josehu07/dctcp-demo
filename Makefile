@@ -4,14 +4,15 @@
 
 NSDIR=ns-allinone-3.35/ns-3.35
 
-SRCS=$(wildcard *.cc)
-BIN=dctcp-sim
+EXECS=dctco-sim
+
 
 
 .PHONY: all cpin build clean run
 
 
 all: cpin build
+
 
 cpin:
 	$(foreach src,$(SRCS),cp $(src) $(NSDIR)/scratch/;)
