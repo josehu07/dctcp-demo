@@ -14,7 +14,7 @@ Due to the design of ns-3, all new components and simulation scripts must be put
 Files added or modified:
 
 * `ns-3.35/scratch/tcp-dctcp-my-perf.cc`: TODO
-* `ns-3.35/src/internet/model/tcp-dctcp-my.cc`: my implementation of DCTCP, which is given the TypeId `TcpDctcpMy`
+* `ns-3.35/src/internet/model/tcp-dctcp-my.cc`: my implementation of `TcpDctcpMy` component
 * `ns-3.35/src/internet/model/tcp-dctcp-my.h`: a duplicate of `tcp-dctcp.h`
 * `ns-3.35/src/internet/test/tcp-dctcp-my-test.cc`: a duplicate of `tcp-dctcp.test.cc`
 * `ns-3.35/src/internet/wscript`: modified to involve `TcpDctcpMy` stuff when building
