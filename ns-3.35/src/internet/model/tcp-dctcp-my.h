@@ -73,7 +73,7 @@ public:
 
 private:
   void FlushDelayedACK (Ptr<TcpSocketState> tcb, bool setECE);
-  void TcpDctcpMy::UpdateDelayedACK (Ptr<TcpSocketState> tcb);
+  void UpdateDelayedACK (Ptr<TcpSocketState> tcb);
   void CEStateOn (Ptr<TcpSocketState> tcb);
   void CEStateOff (Ptr<TcpSocketState> tcb);
 

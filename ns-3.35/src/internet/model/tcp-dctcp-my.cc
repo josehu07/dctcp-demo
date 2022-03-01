@@ -71,8 +71,8 @@ TcpDctcpMy::TcpDctcpMy ()
     holdingDelayedACK (false),
     seqDelayedACK (SequenceNumber32 (0)),
     seqDelayedACKValid (false),
-    bytesACKedECE (0),
     bytesACKedAll (0),
+    bytesACKedECE (0),
     seqNextSend (SequenceNumber32 (0)),
     seqNextSendValid (false)
 {
@@ -88,8 +88,8 @@ TcpDctcpMy::TcpDctcpMy (const TcpDctcpMy& sock)
     holdingDelayedACK (sock.holdingDelayedACK),
     seqDelayedACK (sock.seqDelayedACK),
     seqDelayedACKValid (sock.seqDelayedACKValid),
-    bytesACKedECE (sock.bytesACKedECE),
     bytesACKedAll (sock.bytesACKedAll),
+    bytesACKedECE (sock.bytesACKedECE),
     seqNextSend (sock.seqNextSend),
     seqNextSendValid (sock.seqNextSendValid)
 {
@@ -149,7 +149,9 @@ TcpDctcpMy::CwndEvent (Ptr<TcpSocketState> tcb,
       // received packet with CE bit 0
       CEStateOff (tcb);
       break;
-    default:    // don't care
+    default:
+      // don't care
+      break;
   }
 }
 
@@ -157,9 +159,8 @@ void
 TcpDctcpMy::FlushDelayedACK (Ptr<TcpSocketState> tcb, bool setECE)
 {
   if (holdingDelayedACK && seqDelayedACKValid) {
-    TcpHeader::Flags_t flags = TcpHeader::ACK;
-    if (setECE)
-      flags |= TcpHeader::ECE;
+    TcpHeader::Flags_t flags = setECE ? (TcpHeader::ACK | TcpHeader::ECE)
+                                      :  TcpHeader::ACK;
     SequenceNumber32 seqCurrent = tcb->m_rxBuffer->NextRxSequence ();
     tcb->m_rxBuffer->SetNextRxSequence (seqDelayedACK);
     tcb->m_sendEmptyPacketCallback (flags);
