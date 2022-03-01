@@ -3,6 +3,10 @@
  * Guanzhou Hu @ UW-Madison, CS740, Spring 2022
  *
  * This file contains my own minimal implementation of DCTCP protocol.
+ * Some of the skeleton code is adopted from `tcp-dctcp.cc`.
+ *
+ * The main DCTCP algorithm (in practice) has been well summarized in
+ * section 3 of RFC 8257: https://datatracker.ietf.org/doc/html/rfc8257
  *
  */
 
@@ -11,37 +15,44 @@
 #include "ns3/abort.h"
 #include "ns3/tcp-socket-state.h"
 
+
+// In ns-3, a congestion control algorithm is implemented by providing a
+// set of congestion control operation handlers, declared in the file
+// `tcp-congestion-ops.h`. DCTCP is no exception.
+
+// The good thing about DCTCP is that it builds upon standard ECN mechanisms,
+// so that for the "routers marking CE bit" part, we don't need to implement
+// anything new -- the RED ECN algorithm is capable of doing that and is
+// directly usable in ns-3. We only need to code the end-host (sender/receiver)
+// logic below.
+
+
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("TcpDctcpMy");
 
+NS_LOG_COMPONENT_DEFINE ("TcpDctcpMy");
 NS_OBJECT_ENSURE_REGISTERED (TcpDctcpMy);
 
-TypeId TcpDctcpMy::GetTypeId (void)
+
+/////////////////////////////////////////
+// TcpDctcpMy c++ class common methods //
+/////////////////////////////////////////
+
+TypeId TcpDctcpMy::GetTypeId ()
 {
   static TypeId tid = TypeId ("ns3::TcpDctcpMy")
     .SetParent<TcpLinuxReno> ()
     .AddConstructor<TcpDctcpMy> ()
     .SetGroupName ("Internet")
-    .AddAttribute ("DctcpShiftG",
-                   "Parameter G for updating dctcp_alpha",
-                   DoubleValue (0.0625),
-                   MakeDoubleAccessor (&TcpDctcpMy::m_g),
+    .AddAttribute ("DctcpG",
+                   "Sliding window weight, g, in a = (1-g) * a + g * F",
+                   DoubleValue (0.0625),    // recommended value in RFC 8257
+                   MakeDoubleAccessor (&TcpDctcpMy::g),
                    MakeDoubleChecker<double> (0, 1))
-    .AddAttribute ("DctcpAlphaOnInit",
-                   "Initial alpha value",
-                   DoubleValue (1.0),
-                   MakeDoubleAccessor (&TcpDctcpMy::InitializeDctcpAlpha),
-                   MakeDoubleChecker<double> (0, 1))
-    .AddAttribute ("UseEct0",
-                   "Use ECT(0) for ECN codepoint, if false use ECT(1)",
-                   BooleanValue (true),
-                   MakeBooleanAccessor (&TcpDctcpMy::m_useEct0),
-                   MakeBooleanChecker ())
-    .AddTraceSource ("CongestionEstimate",
-                     "Update sender-side congestion estimate state",
-                     MakeTraceSourceAccessor (&TcpDctcpMy::m_traceCongestionEstimate),
-                     "ns3::TcpDctcpMy::CongestionEstimateTracedCallback")
+    .AddTraceSource ("DctcpUpdate",
+                     "Update sender-side congestion estimate variables",
+                     MakeTraceSourceAccessor (&TcpDctcpMy::traceDctcpUpdate),
+                     "ns3::TcpDctcpMy::DctcpUpdateCallback")
   ;
   return tid;
 }
@@ -53,43 +64,44 @@ std::string TcpDctcpMy::GetName () const
 
 TcpDctcpMy::TcpDctcpMy ()
   : TcpLinuxReno (),
-    m_ackedBytesEcn (0),
-    m_ackedBytesTotal (0),
-    m_priorRcvNxt (SequenceNumber32 (0)),
-    m_priorRcvNxtFlag (false),
-    m_nextSeq (SequenceNumber32 (0)),
-    m_nextSeqFlag (false),
-    m_ceState (false),
-    m_delayedAckReserved (false),
-    m_initialized (false)
+    initialized (false),
+    alpha(1.0),
+    // g is provided as an attribute
+    CEState (false),
+    holdingDelayedACK (false),
+    seqDelayedACK (SequenceNumber32 (0)),
+    seqDelayedACKValid (false),
+    bytesACKedECE (0),
+    bytesACKedAll (0),
+    seqNextSend (SequenceNumber32 (0)),
+    seqNextSendValid (false)
 {
   NS_LOG_FUNCTION (this);
 }
 
 TcpDctcpMy::TcpDctcpMy (const TcpDctcpMy& sock)
   : TcpLinuxReno (sock),
-    m_ackedBytesEcn (sock.m_ackedBytesEcn),
-    m_ackedBytesTotal (sock.m_ackedBytesTotal),
-    m_priorRcvNxt (sock.m_priorRcvNxt),
-    m_priorRcvNxtFlag (sock.m_priorRcvNxtFlag),
-    m_alpha (sock.m_alpha),
-    m_nextSeq (sock.m_nextSeq),
-    m_nextSeqFlag (sock.m_nextSeqFlag),
-    m_ceState (sock.m_ceState),
-    m_delayedAckReserved (sock.m_delayedAckReserved),
-    m_g (sock.m_g),
-    m_useEct0 (sock.m_useEct0),
-    m_initialized (sock.m_initialized)
+    initialized (sock.initialized),
+    alpha (sock.alpha),
+    g (sock.g),
+    CEState (sock.CEState),
+    holdingDelayedACK (sock.holdingDelayedACK),
+    seqDelayedACK (sock.seqDelayedACK),
+    seqDelayedACKValid (sock.seqDelayedACKValid),
+    bytesACKedECE (sock.bytesACKedECE),
+    bytesACKedAll (sock.bytesACKedAll),
+    seqNextSend (sock.seqNextSend),
+    seqNextSendValid (sock.seqNextSendValid)
 {
   NS_LOG_FUNCTION (this);
 }
 
-TcpDctcpMy::~TcpDctcpMy (void)
+TcpDctcpMy::~TcpDctcpMy ()
 {
   NS_LOG_FUNCTION (this);
 }
 
-Ptr<TcpCongestionOps> TcpDctcpMy::Fork (void)
+Ptr<TcpCongestionOps> TcpDctcpMy::Fork ()
 {
   NS_LOG_FUNCTION (this);
   return CopyObject<TcpDctcpMy> (this);
@@ -102,169 +114,160 @@ TcpDctcpMy::Init (Ptr<TcpSocketState> tcb)
   NS_LOG_INFO (this << "Enabling DctcpEcn for DCTCP");
   tcb->m_useEcn = TcpSocketState::On;
   tcb->m_ecnMode = TcpSocketState::DctcpEcn;
-  tcb->m_ectCodePoint = m_useEct0 ? TcpSocketState::Ect0 : TcpSocketState::Ect1;
-  m_initialized = true;
+  tcb->m_ectCodePoint = TcpSocketState::Ect0;   // ECT(1) has no meaning so far
+  initialized = true;
 }
 
-// Step 9, Section 3.3 of RFC 8257.  GetSsThresh() is called upon
-// entering the CWR state, and then later, when CWR is exited,
-// cwnd is set to ssthresh (this value).  bytesInFlight is ignored.
-uint32_t
-TcpDctcpMy::GetSsThresh (Ptr<const TcpSocketState> tcb, uint32_t bytesInFlight)
+
+/////////////////////////////////////////
+// DCTCP: receiver side implementation //
+/////////////////////////////////////////
+
+// Congestion op: what should the receiver do when receiving a congestion
+// avoidance event signal.
+void
+TcpDctcpMy::CwndEvent (Ptr<TcpSocketState> tcb,
+                       const TcpSocketState::TcpCAEvent_t event)
 {
-  NS_LOG_FUNCTION (this << tcb << bytesInFlight);
-  return static_cast<uint32_t> ((1 - m_alpha / 2.0) * tcb->m_cWnd);
+  NS_LOG_FUNCTION (this << tcb << event);
+
+  // section 2, RFC 8257:
+  switch (event) {
+    case TcpSocketState::CA_EVENT_DELAYED_ACK:
+      // sent a delayed ACK
+      holdingDelayedACK = true;
+      break;
+    case TcpSocketState::CA_EVENT_NON_DELAYED_ACK:
+      // sent a non-delayed ACK
+      holdingDelayedACK = false;
+      break;
+    case TcpSocketState::CA_EVENT_ECN_IS_CE:
+      // received packet with CE bit 1
+      CEStateOn (tcb);
+      break;
+    case TcpSocketState::CA_EVENT_ECN_NO_CE:
+      // received packet with CE bit 0
+      CEStateOff (tcb);
+      break;
+    default:    // don't care
+  }
 }
 
 void
-TcpDctcpMy::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked, const Time &rtt)
+TcpDctcpMy::FlushDelayedACK (Ptr<TcpSocketState> tcb, bool setECE)
 {
-  NS_LOG_FUNCTION (this << tcb << segmentsAcked << rtt);
-  m_ackedBytesTotal += segmentsAcked * tcb->m_segmentSize;
-  if (tcb->m_ecnState == TcpSocketState::ECN_ECE_RCVD)
-    {
-      m_ackedBytesEcn += segmentsAcked * tcb->m_segmentSize;
-    }
-  if (m_nextSeqFlag == false)
-    {
-      m_nextSeq = tcb->m_nextTxSequence;
-      m_nextSeqFlag = true;
-    }
-  if (tcb->m_lastAckedSeq >= m_nextSeq)
-    {
-      double bytesEcn = 0.0; // Corresponds to variable M in RFC 8257
-      if (m_ackedBytesTotal >  0)
-        {
-          bytesEcn = static_cast<double> (m_ackedBytesEcn * 1.0 / m_ackedBytesTotal);
-        }
-      m_alpha = (1.0 - m_g) * m_alpha + m_g * bytesEcn;
-      m_traceCongestionEstimate (m_ackedBytesEcn, m_ackedBytesTotal, m_alpha);
-      NS_LOG_INFO (this << "bytesEcn " << bytesEcn << ", m_alpha " << m_alpha);
-      Reset (tcb);
-    }
+  if (holdingDelayedACK && seqDelayedACKValid) {
+    TcpHeader::Flags_t flags = TcpHeader::ACK;
+    if (setECE)
+      flags |= TcpHeader::ECE;
+    SequenceNumber32 seqCurrent = tcb->m_rxBuffer->NextRxSequence ();
+    tcb->m_rxBuffer->SetNextRxSequence (seqDelayedACK);
+    tcb->m_sendEmptyPacketCallback (flags);
+    tcb->m_rxBuffer->SetNextRxSequence (seqCurrent);
+  }
 }
 
 void
-TcpDctcpMy::InitializeDctcpAlpha (double alpha)
+TcpDctcpMy::UpdateDelayedACK (Ptr<TcpSocketState> tcb)
 {
-  NS_LOG_FUNCTION (this << alpha);
-  NS_ABORT_MSG_IF (m_initialized, "DCTCP has already been initialized");
-  m_alpha = alpha;
+  seqDelayedACK = tcb->m_rxBuffer->NextRxSequence ();
+  seqDelayedACKValid = true;
 }
 
 void
-TcpDctcpMy::Reset (Ptr<TcpSocketState> tcb)
+TcpDctcpMy::CEStateOn (Ptr<TcpSocketState> tcb)
 {
   NS_LOG_FUNCTION (this << tcb);
-  m_nextSeq = tcb->m_nextTxSequence;
-  m_ackedBytesEcn = 0;
-  m_ackedBytesTotal = 0;
-}
 
-void
-TcpDctcpMy::CeState0to1 (Ptr<TcpSocketState> tcb)
-{
-  NS_LOG_FUNCTION (this << tcb);
-  if (!m_ceState && m_delayedAckReserved && m_priorRcvNxtFlag)
-    {
-      SequenceNumber32 tmpRcvNxt;
-      /* Save current NextRxSequence. */
-      tmpRcvNxt = tcb->m_rxBuffer->NextRxSequence ();
+  // if CE state is transitioning from 0 to 1, should send out the ACK
+  // without ECE bit for all bytes whose ACK is delayed
+  if (!CEState) {
+    FlushDelayedACK (tcb, /*setECE*/ false);
+    CEState = true;
+  }
 
-      /* Generate previous ACK without ECE */
-      tcb->m_rxBuffer->SetNextRxSequence (m_priorRcvNxt);
-      tcb->m_sendEmptyPacketCallback (TcpHeader::ACK);
+  // update seqDelayedACK to be this packet
+  UpdateDelayedACK (tcb);
 
-      /* Recover current RcvNxt. */
-      tcb->m_rxBuffer->SetNextRxSequence (tmpRcvNxt);
-    }
-
-  if (m_priorRcvNxtFlag == false)
-    {
-      m_priorRcvNxtFlag = true;
-    }
-  m_priorRcvNxt = tcb->m_rxBuffer->NextRxSequence ();
-  m_ceState = true;
+  // set tcb's state to CE_RCVD
   tcb->m_ecnState = TcpSocketState::ECN_CE_RCVD;
 }
 
 void
-TcpDctcpMy::CeState1to0 (Ptr<TcpSocketState> tcb)
+TcpDctcpMy::CEStateOff (Ptr<TcpSocketState> tcb)
 {
   NS_LOG_FUNCTION (this << tcb);
-  if (m_ceState && m_delayedAckReserved && m_priorRcvNxtFlag)
-    {
-      SequenceNumber32 tmpRcvNxt;
-      /* Save current NextRxSequence. */
-      tmpRcvNxt = tcb->m_rxBuffer->NextRxSequence ();
 
-      /* Generate previous ACK with ECE */
-      tcb->m_rxBuffer->SetNextRxSequence (m_priorRcvNxt);
-      tcb->m_sendEmptyPacketCallback (TcpHeader::ACK | TcpHeader::ECE);
+  // if CE state is transitioning from 1 to 0, should send out the ACK
+  // with ECE for all bytes whose ACK is delayed
+  if (CEState) {
+    FlushDelayedACK (tcb, /*setECE*/ true);
+    CEState = false;
+  }
 
-      /* Recover current RcvNxt. */
-      tcb->m_rxBuffer->SetNextRxSequence (tmpRcvNxt);
-    }
+  // update seqDelayedACK to be this packet
+  UpdateDelayedACK (tcb);
 
-  if (m_priorRcvNxtFlag == false)
-    {
-      m_priorRcvNxtFlag = true;
-    }
-  m_priorRcvNxt = tcb->m_rxBuffer->NextRxSequence ();
-  m_ceState = false;
-
-  if (tcb->m_ecnState == TcpSocketState::ECN_CE_RCVD || tcb->m_ecnState == TcpSocketState::ECN_SENDING_ECE)
-    {
-      tcb->m_ecnState = TcpSocketState::ECN_IDLE;
-    }
+  // set tcb's state to CE_IDLE
+  if (tcb->m_ecnState == TcpSocketState::ECN_CE_RCVD ||
+      tcb->m_ecnState == TcpSocketState::ECN_SENDING_ECE) {
+    tcb->m_ecnState = TcpSocketState::ECN_IDLE;
+  }
 }
 
+
+///////////////////////////////////////
+// DCTCP: sender side implementation //
+///////////////////////////////////////
+
+// Congestion op: what should the sender do when accepting an ACK.
 void
-TcpDctcpMy::UpdateAckReserved (Ptr<TcpSocketState> tcb,
-                             const TcpSocketState::TcpCAEvent_t event)
+TcpDctcpMy::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
+                       const Time &rtt)
 {
-  NS_LOG_FUNCTION (this << tcb << event);
-  switch (event)
-    {
-    case TcpSocketState::CA_EVENT_DELAYED_ACK:
-      if (!m_delayedAckReserved)
-        {
-          m_delayedAckReserved = true;
-        }
-      break;
-    case TcpSocketState::CA_EVENT_NON_DELAYED_ACK:
-      if (m_delayedAckReserved)
-        {
-          m_delayedAckReserved = false;
-        }
-      break;
-    default:
-      /* Don't care for the rest. */
-      break;
-    }
+  NS_LOG_FUNCTION (this << tcb << segmentsAcked << rtt);
+
+  // step 1~3, section 3.3, RFC 8257: accumulate the number of bytes ACKed
+  bytesACKedAll += segmentsAcked * tcb->m_segmentSize;
+  if (tcb->m_ecnState == TcpSocketState::ECN_ECE_RCVD)
+    bytesACKedECE += segmentsAcked * tcb->m_segmentSize;
+
+  // step 4, section 3.3, RFC 8257: update seqNextSend; if reached the end
+  // of observation window, proceed to step 5
+  if (!seqNextSendValid) {
+    seqNextSend = tcb->m_nextTxSequence;
+    seqNextSendValid = true;
+  }
+  if (tcb->m_lastAckedSeq < seqNextSend)
+    return;   // not yet the end of current observation window
+
+  // step 5, section 3.3, RFC 8257: compute congestion level
+  double fracF = 0.0;
+  if (bytesACKedAll > 0)
+    fracF = static_cast<double> (bytesACKedECE * 1.0 / bytesACKedAll);
+
+  // step 6, section 3.3, RFC 8257: a = (1-g) * a + g * F
+  alpha = (1.0 - g) * alpha + g * fracF;
+  traceDctcpUpdate (bytesACKedECE, bytesACKedAll, alpha);
+  NS_LOG_INFO (this << "fracF " << fracF << ", alpha " << alpha);
+
+  // step 7~8, section 3.3, RFC 8257: determine the end of the next
+  // observation window, reset the byte counters
+  seqNextSend = tcb->m_nextTxSequence;
+  bytesACKedECE = 0;
+  bytesACKedAll = 0;
 }
 
-void
-TcpDctcpMy::CwndEvent (Ptr<TcpSocketState> tcb,
-                     const TcpSocketState::TcpCAEvent_t event)
+// Congestion op: set window size after a loss event.
+uint32_t
+TcpDctcpMy::GetSsThresh (Ptr<const TcpSocketState> tcb,
+                         uint32_t bytesInFlight)
 {
-  NS_LOG_FUNCTION (this << tcb << event);
-  switch (event)
-    {
-    case TcpSocketState::CA_EVENT_ECN_IS_CE:
-      CeState0to1 (tcb);
-      break;
-    case TcpSocketState::CA_EVENT_ECN_NO_CE:
-      CeState1to0 (tcb);
-      break;
-    case TcpSocketState::CA_EVENT_DELAYED_ACK:
-    case TcpSocketState::CA_EVENT_NON_DELAYED_ACK:
-      UpdateAckReserved (tcb, event);
-      break;
-    default:
-      /* Don't care for the rest. */
-      break;
-    }
+  NS_LOG_FUNCTION (this << tcb << bytesInFlight);
+
+  // step 9, section 3.3, RFC 8257: cwnd = cwnd * (1 - a / 2)
+  return static_cast<uint32_t> ((1.0 - alpha / 2.0) * tcb->m_cWnd);
 }
+
 
 } // namespace ns3
