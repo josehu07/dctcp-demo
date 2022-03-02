@@ -32,7 +32,7 @@ uint32_t cwndSizeS0 = 0;
 std::vector<uint64_t> rxSinkBytes(20, 0);
 
 static void
-TraceCwnd (uint32_t old_cwnd, uint32_t new_cwnd)
+TraceCwnd (uint32_t new_cwnd)
 {
   cwndSizeS0 = new_cwnd;
 }
