@@ -54,6 +54,133 @@ PrintProgress (Time interval, Ptr<QueueDisc> queue, Ptr<TcpSocketState> socketS0
 }
 
 
+//////////////////////////////
+// SimpleSource application //
+//////////////////////////////
+
+// This appliation is adopted from `ns3tcp-cwnd-test-suite.cc`. It exposes
+// a direct handle to the TCP socket.
+
+class SimpleSource : public Application 
+{
+public:
+
+  SimpleSource ();
+  virtual ~SimpleSource();
+
+  /**
+   * Register this type.
+   * \return The TypeId.
+   */
+  static TypeId GetTypeId (void);
+  
+  void Setup (Ptr<Socket> socket, Address address, uint32_t packetSize,
+              DataRate dataRate);
+
+private:
+  virtual void StartApplication (void);
+  virtual void StopApplication (void);
+
+  void ScheduleTx (void);
+  void SendPacket (void);
+
+  Ptr<Socket>     m_socket;
+  Address         m_peer;
+  uint32_t        m_packetSize;
+  DataRate        m_dataRate;
+  EventId         m_sendEvent;
+  bool            m_running;
+  uint32_t        m_packetsSent;
+};
+
+SimpleSource::SimpleSource ()
+  : m_socket (0), 
+    m_peer (), 
+    m_packetSize (0), 
+    m_dataRate (0), 
+    m_sendEvent (), 
+    m_running (false), 
+    m_packetsSent (0)
+{
+}
+
+SimpleSource::~SimpleSource()
+{
+  m_socket = 0;
+}
+
+/* static */
+TypeId
+SimpleSource::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("SimpleSource")
+    .SetParent<Application> ()
+    .SetGroupName ("Stats")
+    .AddConstructor<SimpleSource> ()
+    ;
+  return tid;
+}
+  
+void
+SimpleSource::Setup (Ptr<Socket> socket, Address address, uint32_t packetSize,
+                     DataRate dataRate)
+{
+  m_socket = socket;
+  m_peer = address;
+  m_packetSize = packetSize;
+  m_dataRate = dataRate;
+}
+
+void
+SimpleSource::StartApplication (void)
+{
+  m_running = true;
+  m_packetsSent = 0;
+  m_socket->Bind ();
+  m_socket->Connect (m_peer);
+  SendPacket ();
+}
+
+void 
+SimpleSource::StopApplication (void)
+{
+  m_running = false;
+
+  if (m_sendEvent.IsRunning ())
+    {
+      Simulator::Cancel (m_sendEvent);
+    }
+
+  if (m_socket)
+    {
+      m_socket->Close ();
+    }
+}
+
+void 
+SimpleSource::SendPacket (void)
+{
+  Ptr<Packet> packet = Create<Packet> (m_packetSize);
+  m_socket->Send (packet);
+  ScheduleTx ();
+}
+
+void 
+SimpleSource::ScheduleTx (void)
+{
+  if (m_running)
+    {
+      Time tNext (Seconds (m_packetSize * 8 /
+                           static_cast<double> (m_dataRate.GetBitRate ())));
+      m_sendEvent = Simulator::Schedule (tNext, &SimpleSource::SendPacket, this);
+    }
+}
+
+
+//////////////////////////
+// Simulation procedure //
+//////////////////////////
+
 int
 main (int argc, char *argv[])
 {
@@ -109,7 +236,6 @@ main (int argc, char *argv[])
   // internet stack on nodes
   InternetStackHelper stack;
   stack.InstallAll ();
-  Ptr<TcpSocketState> socketS0 = senders.Get (0)->GetObject<TcpSocketState> ();
 
   // set RED traffic control
   TrafficControlHelper red1G;
@@ -141,6 +267,7 @@ main (int argc, char *argv[])
 
   // create dummy applications on hosts
   std::vector<Ptr<PacketSink>> sinks;
+  std::vector<Ptr<Socket>> txSockets;
   for (size_t i = 0; i < 20; ++i) {
     // sink application on receiver R
     uint16_t port = 50000 + i;
@@ -152,26 +279,24 @@ main (int argc, char *argv[])
     sinkApp.Start (startTime);
     sinkApp.Stop (stopTime);
 
-    // on-off application on sender
-    OnOffHelper onoffHelper ("ns3::TcpSocketFactory", Address ());
-    onoffHelper.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
-    onoffHelper.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
-    onoffHelper.SetAttribute ("DataRate", DataRateValue (DataRate ("1Gbps")));
-    onoffHelper.SetAttribute ("PacketSize", UintegerValue (1000));
-    ApplicationContainer onoffApp;
-    AddressValue remoteAddr (InetSocketAddress (intfTR.GetAddress (1), port));
-    onoffHelper.SetAttribute ("Remote", remoteAddr);
-    onoffApp.Add (onoffHelper.Install (senders.Get (i)));
-    onoffApp.Start (startTime + i * flowStartupWindow / 20);
-    onoffApp.Stop (stopTime);
+    // simple-source application on sender
+    Ptr<Socket> socket = Socket::CreateSocket (senders.Get (i), TcpSocketFactory::GetTypeId ());
+    txSockets.push_back (socket);
+    Ptr<SimpleSource> sourceApp = CreateObject<SimpleSource> ();
+    sourceApp->Setup (socket, sinkLocalAddr, 1000, TODO, DataRate ("1Gbps"));
+    senders.Get (i)->AddApplication (sourceApp);
+    sourceApp->SetStartTime (startTime + i * flowStartupWindow / 20);
+    sourceApp->SetStopTime (stopTime);
   }
 
   // simulation
   Time progressInterval = MilliSeconds (10);
   for (size_t i = 0; i < 20; ++i)
     sinks[i]->TraceConnectWithoutContext ("Rx", MakeBoundCallback (&TraceSink, i));
-  printf("%7s  %11s %11s  %13s\n", "Time(s)", "Queue(pkts)", "CwndS0(bytes)", "RxSink(bytes)");
-  Simulator::Schedule (progressInterval, &PrintProgress, progressInterval, queues.Get (0), socketS0);
+  printf("%7s  %11s %11s  %13s\n",
+         "Time(s)", "Queue(pkts)", "CwndS0(bytes)", "RxSink(bytes)");
+  Simulator::Schedule (progressInterval, &PrintProgress, progressInterval,
+                       queues.Get (0), txSockets[0]);
   Simulator::Stop (stopTime + TimeStep (1));
   Simulator::Run ();
   Simulator::Destroy ();
