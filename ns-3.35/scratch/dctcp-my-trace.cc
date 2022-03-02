@@ -3,6 +3,11 @@
  *
  * This file contains a simulation experiment on a minimal network topology
  * and traces how the congestion window size evolves in DCTCP vs. Reno.
+ *
+ * The topology contains 20 senders, 1 receiver, and a switch T. Senders each
+ * connect to T through a 1Gbps link, and the receiver is connected to T
+ * through a 10Gbps link. All senders send a steady stream of data at 1Gbps
+ * rate.
  */
 
 #include <iostream>
@@ -26,7 +31,7 @@ GetQueueLen (Ptr<QueueDisc> queue)
   return queue->GetNPackets ();
 }
 
-// Congestion window size at sender S.
+// Congestion window size at a sender node.
 // static void
 // GetCwndSize ()
 // {
@@ -52,17 +57,12 @@ main (int argc, char *argv[])
   Time flowStartupWindow = Seconds (1);
   Time convergenceTime = Seconds (3);
   Time measurementWindow = Seconds (1);
-  bool enableSwitchEcn = true;
-  std::string clientDataRate = "10Gbps";
-  Time progressInterval = MilliSeconds (100);
 
   CommandLine cmd (__FILE__);
   cmd.AddValue ("tcpTypeId", "ns-3 TCP TypeId", tcpTypeId);
   cmd.AddValue ("flowStartupWindow", "startup time window", flowStartupWindow);
   cmd.AddValue ("convergenceTime", "convergence time", convergenceTime);
   cmd.AddValue ("measurementWindow", "measurement window", measurementWindow);
-  cmd.AddValue ("enableSwitchEcn", "enable ECN at switches", enableSwitchEcn);
-  cmd.AddValue ("clientDataRate", "client app sending rate", clientDataRate);
   cmd.Parse (argc, argv);
 
   Time startTime = Seconds (0);
@@ -75,7 +75,7 @@ main (int argc, char *argv[])
   GlobalValue::Bind ("ChecksumEnabled", BooleanValue (false));
 
   // RED queue configurations
-  Config::SetDefault ("ns3::RedQueueDisc::UseEcn", BooleanValue (enableSwitchEcn));
+  Config::SetDefault ("ns3::RedQueueDisc::UseEcn", BooleanValue (true));
   Config::SetDefault ("ns3::RedQueueDisc::UseHardDrop", BooleanValue (false));
   Config::SetDefault ("ns3::RedQueueDisc::MeanPktSize", UintegerValue (1500));
   Config::SetDefault ("ns3::RedQueueDisc::MaxSize", QueueSizeValue (QueueSize ("2666p")));
@@ -83,18 +83,24 @@ main (int argc, char *argv[])
   Config::SetDefault ("ns3::RedQueueDisc::MinTh", DoubleValue (20));
   Config::SetDefault ("ns3::RedQueueDisc::MaxTh", DoubleValue (60));  // TODO?
 
-  // two hosts and one switch T
-  Ptr<Node> nodeS = CreateObject<Node> ();
+  // 10 senders, 1 receiver R, and 1 switch T
+  NodeContainer senders;
+  senders.Create (20);
   Ptr<Node> nodeR = CreateObject<Node> ();
   Ptr<Node> nodeT = CreateObject<Node> ();
 
-  // network link type
-  PointToPointHelper link;
+  // network link types
+  PointToPointHelper linkST;
   link.SetDeviceAttribute ("DataRate", StringValue ("1Gbps"));
   link.SetChannelAttribute ("Delay", StringValue ("10us"));
+  PointToPointHelper linkTR;
+  link.SetDeviceAttribute ("DataRate", StringValue ("10Gbps"));
+  link.SetChannelAttribute ("Delay", StringValue ("10us"));
 
-  // connect S to T and T to R
-  NetDeviceContainer devST = link.Install (nodeS, nodeT);
+  // connect senders to T and T to R
+  std::vector<NetDeviceContainer> devSTs;
+  for (size_t i = 0; i < 20; ++i)
+    devSTs.push_back (linkST.Install (senders.Get (i), nodeT));
   NetDeviceContainer devTR = link.Install (nodeT, nodeR);
 
   // internet stack on nodes
@@ -102,19 +108,22 @@ main (int argc, char *argv[])
   stack.InstallAll ();
 
   // set RED traffic control
-  TrafficControlHelper red;
-  red.SetRootQueueDisc ("ns3::RedQueueDisc",
-                        "LinkBandwidth", StringValue ("1Gbps"),
-                        "LinkDelay", StringValue ("10us"),
-                        "MinTh", DoubleValue (20),
-                        "MaxTh", DoubleValue (60));
-  QueueDiscContainer queueST = red.Install (devST);
-  QueueDiscContainer queueTR = red.Install (devTR);
+  TrafficControlHelper red1G;
+  red1G.SetRootQueueDisc ("ns3::RedQueueDisc",
+                          "LinkBandwidth", StringValue ("1Gbps"),
+                          "LinkDelay", StringValue ("10us"),
+                          "MinTh", DoubleValue (20),
+                          "MaxTh", DoubleValue (60));
+  QueueDiscContainer queues = red1G.Install (devSTs[0].Get (1));
+  for (size_t i = 1; i < 20; ++i)
+    red1G.Install (devSTs[i].Get (1));
 
   // associate IP addresses
   Ipv4AddressHelper address;
+  std::vector<Ipv4InterfaceContainer> intfSTs;
   address.SetBase ("10.1.1.0", "255.255.255.0");
-  Ipv4InterfaceContainer intfST = address.Assign (devST);
+  for (size_t i = 0; i < 20; ++i)
+    intfSTs.push_back (address.Assign (devSTs[i]));
   Ipv4InterfaceContainer intfTR = address.Assign (devTR);
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
@@ -127,21 +136,24 @@ main (int argc, char *argv[])
   sinkApp.Start (startTime);
   sinkApp.Stop (stopTime);
 
-  // on-off application on sender S
-  OnOffHelper onoffHelper ("ns3::TcpSocketFactory", Address ());
-  onoffHelper.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
-  onoffHelper.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
-  onoffHelper.SetAttribute ("DataRate", DataRateValue (DataRate (clientDataRate)));
-  onoffHelper.SetAttribute ("PacketSize", UintegerValue (1000));
-  ApplicationContainer onoffApp;
-  AddressValue remoteAddr (InetSocketAddress (intfTR.GetAddress (1), port));
-  onoffHelper.SetAttribute ("Remote", remoteAddr);
-  onoffApp.Add (onoffHelper.Install (nodeS));
-  onoffApp.Start (startTime);
-  onoffApp.Stop (stopTime);
+  // on-off applicationa on senders
+  for (size_t i = 0; i < 20; ++i) {
+    OnOffHelper onoffHelper ("ns3::TcpSocketFactory", Address ());
+    onoffHelper.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
+    onoffHelper.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
+    onoffHelper.SetAttribute ("DataRate", DataRateValue (DataRate ("1Gbps")));
+    onoffHelper.SetAttribute ("PacketSize", UintegerValue (1000));
+    ApplicationContainer onoffApp;
+    AddressValue remoteAddr (InetSocketAddress (intfTR.GetAddress (1), port));
+    onoffHelper.SetAttribute ("Remote", remoteAddr);
+    onoffApp.Add (onoffHelper.Install (senders.Get (i)));
+    onoffApp.Start (startTime + i * flowStartupWindow / 20);
+    onoffApp.Stop (stopTime);
+  }
 
   // simulation
-  Simulator::Schedule (progressInterval, &PrintProgress, progressInterval, queueTR.Get (0));
+  Time progressInterval = MilliSeconds (100);
+  Simulator::Schedule (progressInterval, &PrintProgress, progressInterval, queues.Get (0));
   Simulator::Stop (stopTime + TimeStep (1));
   Simulator::Run ();
   Simulator::Destroy ();
