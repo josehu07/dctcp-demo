@@ -53,10 +53,10 @@ TypeId TcpDctcpMy::GetTypeId ()
                    BooleanValue (true),     // set to false in testing
                    MakeBooleanAccessor (&TcpDctcpMy::useECT0),
                    MakeBooleanChecker ())
-    .AddTraceSource ("DctcpUpdate",
+    .AddTraceSource ("DctcpAlpha",
                      "Update sender-side congestion estimate variables",
-                     MakeTraceSourceAccessor (&TcpDctcpMy::traceDctcpUpdate),
-                     "ns3::TcpDctcpMy::DctcpUpdateCallback")
+                     MakeTraceSourceAccessor (&TcpDctcpMy::traceDctcpAlpha),
+                     "ns3::TcpDctcpMy::DctcpAlphaCallback")
   ;
   return tid;
 }
@@ -254,7 +254,7 @@ TcpDctcpMy::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
 
   // step 6, section 3.3, RFC 8257: a = (1-g) * a + g * F
   alpha = (1.0 - g) * alpha + g * fracF;
-  traceDctcpUpdate (bytesACKedECE, bytesACKedAll, alpha);
+  traceDctcpAlpha (bytesACKedECE, bytesACKedAll, alpha);
   NS_LOG_INFO (this << "fracF " << fracF << ", alpha " << alpha);
 
   // step 7~8, section 3.3, RFC 8257: determine the end of the next

@@ -69,7 +69,7 @@ public:
    * \param [in] bytesMarked Bytes marked in this observation window
    * \param [in] alpha New alpha (congestion estimate) value
    */
-  typedef void (* DctcpUpdateCallback)(uint32_t bytesAcked, uint32_t bytesMarked, double alpha);
+  typedef void (* DctcpAlphaCallback)(uint32_t bytesAcked, uint32_t bytesMarked, double alpha);
 
 private:
   void FlushDelayedACK (Ptr<TcpSocketState> tcb, bool setECE);
@@ -90,7 +90,7 @@ private:
   bool seqNextSendValid;            //!< Is seqNextSend valid
   bool useECT0;                     //!< True if using ECT(0), false if using ECT(1)
 
-  TracedCallback<uint32_t, uint32_t, double> traceDctcpUpdate;
+  TracedCallback<uint32_t, uint32_t, double> traceDctcpAlpha;
 };
 
 } // namespace ns3

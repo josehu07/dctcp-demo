@@ -27,40 +27,28 @@ using namespace ns3;
 
 std::vector<uint64_t> rxSinkBytes(20, 0);
 
-
-// Queue length at switch T.
-static uint32_t
-GetQueueLen (Ptr<QueueDisc> queue)
-{
-  return queue->GetNPackets ();
-}
-
-// Congestion window size at a sender node.
-// static void
-// GetCwndSize ()
-// {
-
-// }
-
 // Sinked bytes on receiver app.
 static void
-TraceSink(size_t i, Ptr<const Packet> p, const Address& a)
+TraceSink (size_t i, Ptr<const Packet> p, const Address& a)
 {
   rxSinkBytes[i] += p->GetSize ();
 }
 
+
 void
-PrintProgress (Time interval, Ptr<QueueDisc> queue)
+PrintProgress (Time interval, Ptr<QueueDisc> queue, Ptr<TcpSocketState> socketS0)
 {
-  uint32_t queueLen = GetQueueLen(queue);
+  uint32_t queueLen = queue->GetNPackets ();
+  uint32_t cwndSize = socketS0->m_cWnd.Get ();
   uint64_t rxTotalBytes = 0;
   for (uint64_t& b : rxSinkBytes)
     rxTotalBytes += b;
 
-  std::cout << std::fixed << std::setprecision (2) << std::setw(7) << Simulator::Now ().GetSeconds () << " "
-            << std::setw(11) << queueLen << " "
-            << std::setw(11) << 0 << " "
-            << std::setw(13) << rxTotalBytes << std::endl;
+  std::cout << std::fixed << std::setprecision (2)
+            << std::setw (7) << Simulator::Now ().GetSeconds () << "  "
+            << std::setw (11) << queueLen << "  "
+            << std::setw (13) << 0 << "  "
+            << std::setw (13) << rxTotalBytes << std::endl;
   
   Simulator::Schedule (interval, &PrintProgress, interval, queue);
 }
@@ -121,6 +109,7 @@ main (int argc, char *argv[])
   // internet stack on nodes
   InternetStackHelper stack;
   stack.InstallAll ();
+  Ptr<TcpSocketState> socketS0 = senders.Get (0)->GetObject<TcpSocketState> ();
 
   // set RED traffic control
   TrafficControlHelper red1G;
@@ -181,8 +170,8 @@ main (int argc, char *argv[])
   Time progressInterval = MilliSeconds (10);
   for (size_t i = 0; i < 20; ++i)
     sinks[i]->TraceConnectWithoutContext ("Rx", MakeBoundCallback (&TraceSink, i));
-  printf("%7s %11s %11s %13s\n", "Time(s)", "Queue(pkts)", "Cwnd(bytes)", "RxSink(bytes)");
-  Simulator::Schedule (progressInterval, &PrintProgress, progressInterval, queues.Get (0));
+  printf("%7s  %11s %11s  %13s\n", "Time(s)", "Queue(pkts)", "CwndS0(bytes)", "RxSink(bytes)");
+  Simulator::Schedule (progressInterval, &PrintProgress, progressInterval, queues.Get (0), socketS0);
   Simulator::Stop (stopTime + TimeStep (1));
   Simulator::Run ();
   Simulator::Destroy ();
