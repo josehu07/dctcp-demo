@@ -139,8 +139,10 @@ main (int argc, char *argv[])
   Ipv4AddressHelper address;
   std::vector<Ipv4InterfaceContainer> intfSTs;
   address.SetBase ("10.1.1.0", "255.255.255.0");
-  for (size_t i = 0; i < 20; ++i)
+  for (size_t i = 0; i < 20; ++i) {
     intfSTs.push_back (address.Assign (devSTs[i]));
+    address.NewNetwork ();
+  }
   Ipv4InterfaceContainer intfTR = address.Assign (devTR);
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
