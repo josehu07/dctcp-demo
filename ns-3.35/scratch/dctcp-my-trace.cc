@@ -12,6 +12,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <numeric>
 
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
@@ -24,7 +25,7 @@
 using namespace ns3;
 
 
-uint64_t rxSinkBytes = 0;
+std::vector<uint64_t> rxSinkBytes(20, 0);
 
 
 // Queue length at switch T.
@@ -41,21 +42,27 @@ GetQueueLen (Ptr<QueueDisc> queue)
 
 // }
 
+// Sinked bytes on receiver app.
 static void
-TraceSink(Ptr<const Packet> p, const Address& a)
+TraceSink(size_t i, Ptr<const Packet> p, const Address& a)
 {
-  rxSinkBytes += p->GetSize ();
+  rxSinkBytes[i] += p->GetSize ();
 }
 
 void
 PrintProgress (Time interval, Ptr<QueueDisc> queue)
 {
   uint32_t queueLen = GetQueueLen(queue);
-  std::cout << std::fixed << std::setprecision (1)
+  uint64_t rxTotalBytes = 0;
+  for (uint64_t& b : rxSinkBytes)
+    rxTotalBytes += b;
+
+  std::cout << std::fixed << std::setprecision (2)
             << Simulator::Now ().GetSeconds () << " "
             << queueLen << " "
-            << rxSinkBytes << " "
-            << std::endl;
+            << 0 << " "
+            << rxTotalBytes << std::endl;
+  
   Simulator::Schedule (interval, &PrintProgress, interval, queue);
 }
 
@@ -66,7 +73,7 @@ main (int argc, char *argv[])
   // experiment configurations
   std::string tcpTypeId = "TcpDctcpMy";
   Time flowStartupWindow = Seconds (1);
-  Time convergenceTime = Seconds (3);
+  Time convergenceTime = Seconds (1);
   Time measurementWindow = Seconds (1);
 
   CommandLine cmd (__FILE__);
@@ -91,8 +98,6 @@ main (int argc, char *argv[])
   Config::SetDefault ("ns3::RedQueueDisc::MeanPktSize", UintegerValue (1500));
   Config::SetDefault ("ns3::RedQueueDisc::MaxSize", QueueSizeValue (QueueSize ("2666p")));
   Config::SetDefault ("ns3::RedQueueDisc::QW", DoubleValue (1));
-  Config::SetDefault ("ns3::RedQueueDisc::MinTh", DoubleValue (20));
-  Config::SetDefault ("ns3::RedQueueDisc::MaxTh", DoubleValue (60));  // TODO?
 
   // 10 senders, 1 receiver R, and 1 switch T
   NodeContainer senders;
@@ -174,8 +179,10 @@ main (int argc, char *argv[])
   }
 
   // simulation
-  Time progressInterval = MilliSeconds (100);
-  sinks[0]->TraceConnectWithoutContext ("Rx", MakeCallback (&TraceSink));
+  Time progressInterval = MilliSeconds (10);
+  for (size_t i = 0; i < 20; ++i)
+    sinks[i]->TraceConnectWithoutContext ("Rx", MakeBoundCallback (&TraceSink, i));
+  printf("%7s %11s %11s %13s\n", "Time(s)", "Queue(pkts)", "Cwnd(bytes)", "RxSink(bytes)");
   Simulator::Schedule (progressInterval, &PrintProgress, progressInterval, queues.Get (0));
   Simulator::Stop (stopTime + TimeStep (1));
   Simulator::Run ();
