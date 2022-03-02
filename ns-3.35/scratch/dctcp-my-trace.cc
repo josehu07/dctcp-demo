@@ -57,11 +57,10 @@ PrintProgress (Time interval, Ptr<QueueDisc> queue)
   for (uint64_t& b : rxSinkBytes)
     rxTotalBytes += b;
 
-  std::cout << std::fixed << std::setprecision (2)
-            << Simulator::Now ().GetSeconds () << " "
-            << queueLen << " "
-            << 0 << " "
-            << rxTotalBytes << std::endl;
+  std::cout << std::fixed << std::setprecision (2) << std::setw(7) << Simulator::Now ().GetSeconds () << " "
+            << std::setw(11) << queueLen << " "
+            << std::setw(11) << 0 << " "
+            << std::setw(13) << rxTotalBytes << std::endl;
   
   Simulator::Schedule (interval, &PrintProgress, interval, queue);
 }
