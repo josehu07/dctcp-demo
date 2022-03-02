@@ -313,7 +313,7 @@ main (int argc, char *argv[])
   for (size_t i = 0; i < 20; ++i)
     sinks[i]->TraceConnectWithoutContext ("Rx", MakeBoundCallback (&TraceRxSinkBytes, i));
   txSockets[0]->TraceConnectWithoutContext ("CongestionWindow", MakeCallback (&TraceCwndSizeS0));
-  txSockets[0]->TraceConnectWithoutContext ("DctcpAlpha", MakeCallback (&TraceDctcpAlpha));
+  txSockets[0]->m_congestionControl->TraceConnectWithoutContext ("DctcpAlpha", MakeCallback (&TraceDctcpAlpha));
   printf("%7s  %11s  %13s  %13s  %5s\n",
          "Time(s)", "Queue(pkts)", "CwndS0(bytes)", "RxSink(bytes)", "alpha");
   Simulator::Schedule (progressInterval, &PrintProgress, progressInterval, queues.Get (0));
