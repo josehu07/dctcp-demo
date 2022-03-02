@@ -114,9 +114,15 @@ main (int argc, char *argv[])
                           "LinkDelay", StringValue ("10us"),
                           "MinTh", DoubleValue (20),
                           "MaxTh", DoubleValue (60));
-  QueueDiscContainer queues = red1G.Install (devSTs[0].Get (1));
-  for (size_t i = 1; i < 20; ++i)
+  for (size_t i = 0; i < 20; ++i)
     red1G.Install (devSTs[i].Get (1));
+  TrafficControlHelper red10G;
+  red10G.SetRootQueueDisc ("ns3::RedQueueDisc",
+                           "LinkBandwidth", StringValue ("10Gbps"),
+                           "LinkDelay", StringValue ("10us"),
+                           "MinTh", DoubleValue (50),
+                           "MaxTh", DoubleValue (150));
+  QueueDiscContainer queues = red10G.Install (devTR.Get (0));
 
   // associate IP addresses
   Ipv4AddressHelper address;
