@@ -32,13 +32,13 @@ uint32_t cwndSizeS0 = 0;
 std::vector<uint64_t> rxSinkBytes(20, 0);
 
 static void
-TraceCwnd (uint32_t new_cwnd)
+TraceCwndSizeS0 (uint32_t old_cwnd, uint32_t new_cwnd)
 {
   cwndSizeS0 = new_cwnd;
 }
 
 static void
-TraceSink (size_t i, Ptr<const Packet> p, const Address& a)
+TraceRxSinkBytes (size_t i, Ptr<const Packet> p, const Address& a)
 {
   rxSinkBytes[i] += p->GetSize ();
 }
@@ -300,8 +300,8 @@ main (int argc, char *argv[])
   // simulation
   Time progressInterval = MilliSeconds (10);
   for (size_t i = 0; i < 20; ++i)
-    sinks[i]->TraceConnectWithoutContext ("Rx", MakeBoundCallback (&TraceSink, i));
-  txSockets[0]->TraceConnectWithoutContext ("CongestionWindow", MakeCallback (&TraceCwnd));
+    sinks[i]->TraceConnectWithoutContext ("Rx", MakeBoundCallback (&TraceRxSinkBytes, i));
+  txSockets[0]->TraceConnectWithoutContext ("CongestionWindow", MakeCallback (&TraceCwndSizeS0));
   printf("%7s  %11s %11s  %13s\n",
          "Time(s)", "Queue(pkts)", "CwndS0(bytes)", "RxSink(bytes)");
   Simulator::Schedule (progressInterval, &PrintProgress, progressInterval, queues.Get (0));
