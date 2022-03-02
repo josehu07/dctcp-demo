@@ -2,3 +2,4 @@ ns-3.35/build/
 ns-3.35/.lock*
 ns-3.35/.waf*
 **/__pycache__/
+/*.log

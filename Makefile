@@ -1,7 +1,8 @@
-NSDIR=ns-3.35
+NSDIR:=ns-3.35
+ROOTDIR:=$(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 
-.PHONY: all build clean test perf
+.PHONY: all build clean test simulation paper-expt
 
 all: build
 
@@ -16,7 +17,22 @@ clean:
 
 
 test:
-	echo "Test"
+	cd $(NSDIR) && \
+		./waf check
 
-perf:
-	echo "Perf"
+
+simulation:
+	@echo
+	@echo "=== Running Linux Reno ==="
+	@echo
+	cd $(NSDIR) && \
+		./waf --run scratch/trace-tcp-reno | tee $(ROOTDIR)/trace-tcp-reno.log
+	@echo
+	@echo "=== Running My DCTCP ==="
+	@echo
+	cd $(NSDIR) && \
+		./waf --run scratch/trace-dctcp-my | tee $(ROOTDIR)/trace-dctcp-my.log
+
+paper-expt:
+	cd $(NSDIR) && \
+		./waf --run scratch/paper-dctcp-my
