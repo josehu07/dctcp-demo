@@ -127,17 +127,18 @@ main (int argc, char *argv[])
   Ipv4InterfaceContainer intfTR = address.Assign (devTR);
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
-  // sink application on receiver R
-  uint16_t port = 50001;
-  Address sinkLocalAddr (InetSocketAddress (Ipv4Address::GetAny (), port));
-  PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", sinkLocalAddr);
-  ApplicationContainer sinkApp = sinkHelper.Install (nodeR);
-  Ptr<PacketSink> sink = sinkApp.Get (0)->GetObject<PacketSink> ();
-  sinkApp.Start (startTime);
-  sinkApp.Stop (stopTime);
-
-  // on-off applicationa on senders
+  // create dummy applications on hosts
   for (size_t i = 0; i < 20; ++i) {
+    // sink application on receiver R
+    uint16_t port = 50000 + i;
+    Address sinkLocalAddr (InetSocketAddress (Ipv4Address::GetAny (), port));
+    PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", sinkLocalAddr);
+    ApplicationContainer sinkApp = sinkHelper.Install (nodeR);
+    Ptr<PacketSink> sink = sinkApp.Get (0)->GetObject<PacketSink> ();
+    sinkApp.Start (startTime);
+    sinkApp.Stop (stopTime);
+
+    // on-off application on sender
     OnOffHelper onoffHelper ("ns3::TcpSocketFactory", Address ());
     onoffHelper.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
     onoffHelper.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
