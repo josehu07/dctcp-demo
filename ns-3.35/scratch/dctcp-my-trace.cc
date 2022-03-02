@@ -283,7 +283,7 @@ main (int argc, char *argv[])
     Ptr<Socket> socket = Socket::CreateSocket (senders.Get (i), TcpSocketFactory::GetTypeId ());
     txSockets.push_back (socket);
     Ptr<SimpleSource> sourceApp = CreateObject<SimpleSource> ();
-    sourceApp->Setup (socket, sinkLocalAddr, 1000, TODO, DataRate ("1Gbps"));
+    sourceApp->Setup (socket, sinkLocalAddr, 1000, DataRate ("1Gbps"));
     senders.Get (i)->AddApplication (sourceApp);
     sourceApp->SetStartTime (startTime + i * flowStartupWindow / 20);
     sourceApp->SetStopTime (stopTime);
