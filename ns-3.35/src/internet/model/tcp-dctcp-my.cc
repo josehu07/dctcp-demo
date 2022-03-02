@@ -159,11 +159,10 @@ void
 TcpDctcpMy::FlushDelayedACK (Ptr<TcpSocketState> tcb, bool setECE)
 {
   if (holdingDelayedACK && seqDelayedACKValid) {
-    TcpHeader::Flags_t flags = setECE ? (TcpHeader::ACK | TcpHeader::ECE)
-                                      :  TcpHeader::ACK;
     SequenceNumber32 seqCurrent = tcb->m_rxBuffer->NextRxSequence ();
     tcb->m_rxBuffer->SetNextRxSequence (seqDelayedACK);
-    tcb->m_sendEmptyPacketCallback (flags);
+    tcb->m_sendEmptyPacketCallback (setECE ? (TcpHeader::ACK | TcpHeader::ECE)
+                                           :  TcpHeader::ACK);
     tcb->m_rxBuffer->SetNextRxSequence (seqCurrent);
   }
 }
