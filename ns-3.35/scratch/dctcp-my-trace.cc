@@ -47,7 +47,7 @@ PrintProgress (Time interval, Ptr<QueueDisc> queue, Ptr<TcpSocketState> socketS0
   std::cout << std::fixed << std::setprecision (2)
             << std::setw (7) << Simulator::Now ().GetSeconds () << "  "
             << std::setw (11) << queueLen << "  "
-            << std::setw (13) << 0 << "  "
+            << std::setw (13) << cwndSize << "  "
             << std::setw (13) << rxTotalBytes << std::endl;
   
   Simulator::Schedule (interval, &PrintProgress, interval, queue);
