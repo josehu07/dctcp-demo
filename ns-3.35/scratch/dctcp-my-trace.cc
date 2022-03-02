@@ -50,7 +50,7 @@ PrintProgress (Time interval, Ptr<QueueDisc> queue, Ptr<TcpSocketState> socketS0
             << std::setw (13) << cwndSize << "  "
             << std::setw (13) << rxTotalBytes << std::endl;
   
-  Simulator::Schedule (interval, &PrintProgress, interval, queue);
+  Simulator::Schedule (interval, &PrintProgress, interval, queue, socketS0);
 }
 
 
