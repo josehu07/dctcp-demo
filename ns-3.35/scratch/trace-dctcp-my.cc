@@ -31,6 +31,9 @@ uint32_t cwndSizeS0 = 0;
 // Sinked bytes on receiver app.
 std::vector<uint64_t> rxSinkBytes(20, 0);
 
+// DCTCP alpha variable on sender S0.
+double alphaValue = 1.0;
+
 void
 TraceCwndSizeS0 (uint32_t old_cwnd, uint32_t new_cwnd)
 {
@@ -41,6 +44,12 @@ void
 TraceRxSinkBytes (size_t i, Ptr<const Packet> p, const Address& a)
 {
   rxSinkBytes[i] += p->GetSize ();
+}
+
+void
+TraceDctcpAlpha (uint32_t bytesAcked, uint32_t bytesMarked, double alpha)
+{
+  alphaValue = alpha;
 }
 
 
@@ -56,7 +65,8 @@ PrintProgress (Time interval, Ptr<QueueDisc> queue)
             << std::setw (7) << Simulator::Now ().GetSeconds () << "  "
             << std::setw (11) << queueLen << "  "
             << std::setw (13) << cwndSizeS0 << "  "
-            << std::setw (13) << rxTotalBytes << std::endl;
+            << std::setw (13) << rxTotalBytes << "  "
+            << std::setw (3) << alphaValue << std::endl;
   
   Simulator::Schedule (interval, &PrintProgress, interval, queue);
 }
@@ -303,8 +313,9 @@ main (int argc, char *argv[])
   for (size_t i = 0; i < 20; ++i)
     sinks[i]->TraceConnectWithoutContext ("Rx", MakeBoundCallback (&TraceRxSinkBytes, i));
   txSockets[0]->TraceConnectWithoutContext ("CongestionWindow", MakeCallback (&TraceCwndSizeS0));
-  printf("%7s  %11s  %13s  %13s\n",
-         "Time(s)", "Queue(pkts)", "CwndS0(bytes)", "RxSink(bytes)");
+  txSockets[0]->TraceConnectWithoutContext ("DctcpAlpha", MakeCallback (&TraceDctcpAlpha));
+  printf("%7s  %11s  %13s  %13s  %5s\n",
+         "Time(s)", "Queue(pkts)", "CwndS0(bytes)", "RxSink(bytes)", "alpha");
   Simulator::Schedule (progressInterval, &PrintProgress, progressInterval, queues.Get (0));
   Simulator::Stop (stopTime + TimeStep (1));
   Simulator::Run ();
