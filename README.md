@@ -47,6 +47,8 @@ Run the simulation:
 make simulation
 ```
 
+You will find `trace-tcp-reno.log` and `trace-dctcp-my.log` at the root directory of this repo once this finished. In both logs, the time region between 2 secs - 3 secs is the meaningful measurement window after convergence.
+
 ns-3 ships with a much more complicated example simulation that mimicks the exepriment originally presented in the DCTCP paper. I also duplicated that one to `paper-dctcp-my.cc`.
 
 Run the paper experiment:
@@ -54,3 +56,5 @@ Run the paper experiment:
 ```bash
 make paper-expt     # may take long
 ```
+
+You will find a bunch of `.dat` data logs under `ns-3.35/` once this finished.

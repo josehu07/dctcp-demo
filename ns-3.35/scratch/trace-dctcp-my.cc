@@ -299,7 +299,7 @@ main (int argc, char *argv[])
   }
 
   // simulation
-  Time progressInterval = MilliSeconds (10);
+  Time progressInterval = MilliSeconds (1);
   for (size_t i = 0; i < 20; ++i)
     sinks[i]->TraceConnectWithoutContext ("Rx", MakeBoundCallback (&TraceRxSinkBytes, i));
   txSockets[0]->TraceConnectWithoutContext ("CongestionWindow", MakeCallback (&TraceCwndSizeS0));
