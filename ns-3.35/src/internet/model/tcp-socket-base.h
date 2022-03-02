@@ -1241,7 +1241,7 @@ protected:
    */
   SequenceNumber32 GetHighRxAck (void) const;
 
-protected:
+public:
   // Counters and events
   EventId           m_retxEvent     {}; //!< Retransmission event
   EventId           m_lastAckEvent  {}; //!< Last ACK timeout event
