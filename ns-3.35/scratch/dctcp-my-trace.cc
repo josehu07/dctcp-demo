@@ -36,7 +36,7 @@ GetQueueLen (Ptr<QueueDisc> queue)
 void
 PrintProgress (Time interval, Ptr<QueueDisc> queue)
 {
-  uint32_t queueLen = GetQueueLen(queue)
+  uint32_t queueLen = GetQueueLen(queue);
   std::cout << std::fixed << std::setprecision (1)
             << Simulator::Now ().GetSeconds () << " "
             << queueLen << std::endl;
