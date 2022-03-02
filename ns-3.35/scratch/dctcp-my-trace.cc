@@ -91,17 +91,17 @@ main (int argc, char *argv[])
 
   // network link types
   PointToPointHelper linkST;
-  link.SetDeviceAttribute ("DataRate", StringValue ("1Gbps"));
-  link.SetChannelAttribute ("Delay", StringValue ("10us"));
+  linkST.SetDeviceAttribute ("DataRate", StringValue ("1Gbps"));
+  linkST.SetChannelAttribute ("Delay", StringValue ("10us"));
   PointToPointHelper linkTR;
-  link.SetDeviceAttribute ("DataRate", StringValue ("10Gbps"));
-  link.SetChannelAttribute ("Delay", StringValue ("10us"));
+  linkTR.SetDeviceAttribute ("DataRate", StringValue ("10Gbps"));
+  linkTR.SetChannelAttribute ("Delay", StringValue ("10us"));
 
   // connect senders to T and T to R
   std::vector<NetDeviceContainer> devSTs;
   for (size_t i = 0; i < 20; ++i)
     devSTs.push_back (linkST.Install (senders.Get (i), nodeT));
-  NetDeviceContainer devTR = link.Install (nodeT, nodeR);
+  NetDeviceContainer devTR = linkTR.Install (nodeT, nodeR);
 
   // internet stack on nodes
   InternetStackHelper stack;
