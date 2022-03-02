@@ -25,9 +25,18 @@
 using namespace ns3;
 
 
-std::vector<uint64_t> rxSinkBytes(20, 0);
+// Cwnd in bytes on sender S0.
+uint32_t cwndSizeS0 = 0;
 
 // Sinked bytes on receiver app.
+std::vector<uint64_t> rxSinkBytes(20, 0);
+
+static void
+TraceCwnd (uint32_t cwnd)
+{
+  cwndSizeS0 = cwnd;
+}
+
 static void
 TraceSink (size_t i, Ptr<const Packet> p, const Address& a)
 {
@@ -36,10 +45,9 @@ TraceSink (size_t i, Ptr<const Packet> p, const Address& a)
 
 
 void
-PrintProgress (Time interval, Ptr<QueueDisc> queue, Ptr<TcpSocketState> socketS0)
+PrintProgress (Time interval, Ptr<QueueDisc> queue)
 {
   uint32_t queueLen = queue->GetNPackets ();
-  uint32_t cwndSize = socketS0->m_cWnd.Get ();
   uint64_t rxTotalBytes = 0;
   for (uint64_t& b : rxSinkBytes)
     rxTotalBytes += b;
@@ -47,10 +55,10 @@ PrintProgress (Time interval, Ptr<QueueDisc> queue, Ptr<TcpSocketState> socketS0
   std::cout << std::fixed << std::setprecision (2)
             << std::setw (7) << Simulator::Now ().GetSeconds () << "  "
             << std::setw (11) << queueLen << "  "
-            << std::setw (13) << cwndSize << "  "
+            << std::setw (13) << cwndSizeS0 << "  "
             << std::setw (13) << rxTotalBytes << std::endl;
   
-  Simulator::Schedule (interval, &PrintProgress, interval, queue, socketS0);
+  Simulator::Schedule (interval, &PrintProgress, interval, queue);
 }
 
 
@@ -293,10 +301,10 @@ main (int argc, char *argv[])
   Time progressInterval = MilliSeconds (10);
   for (size_t i = 0; i < 20; ++i)
     sinks[i]->TraceConnectWithoutContext ("Rx", MakeBoundCallback (&TraceSink, i));
+  txSockets[0]->TraceConnectWithoutContext ("CongestionWindow", MakeCallback (&TraceCwnd));
   printf("%7s  %11s %11s  %13s\n",
          "Time(s)", "Queue(pkts)", "CwndS0(bytes)", "RxSink(bytes)");
-  Simulator::Schedule (progressInterval, &PrintProgress, progressInterval,
-                       queues.Get (0), txSockets[0]);
+  Simulator::Schedule (progressInterval, &PrintProgress, progressInterval, queues.Get (0));
   Simulator::Stop (stopTime + TimeStep (1));
   Simulator::Run ();
   Simulator::Destroy ();
