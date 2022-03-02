@@ -49,6 +49,11 @@ TypeId TcpDctcpMy::GetTypeId ()
                    DoubleValue (0.0625),    // recommended value in RFC 8257
                    MakeDoubleAccessor (&TcpDctcpMy::g),
                    MakeDoubleChecker<double> (0, 1))
+    .AddAttribute ("UseEct0",
+                   "Use ECT(0) for ECN codepoint, if false use ECT(1)",
+                   BooleanValue (true),     // set to false in testing
+                   MakeBooleanAccessor (&TcpDctcp::useECT0),
+                   MakeBooleanChecker ())
     .AddTraceSource ("DctcpUpdate",
                      "Update sender-side congestion estimate variables",
                      MakeTraceSourceAccessor (&TcpDctcpMy::traceDctcpUpdate),
@@ -91,7 +96,8 @@ TcpDctcpMy::TcpDctcpMy (const TcpDctcpMy& sock)
     bytesACKedAll (sock.bytesACKedAll),
     bytesACKedECE (sock.bytesACKedECE),
     seqNextSend (sock.seqNextSend),
-    seqNextSendValid (sock.seqNextSendValid)
+    seqNextSendValid (sock.seqNextSendValid),
+    useECT0 (sock.useECT0)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -114,7 +120,7 @@ TcpDctcpMy::Init (Ptr<TcpSocketState> tcb)
   NS_LOG_INFO (this << "Enabling DctcpEcn for DCTCP");
   tcb->m_useEcn = TcpSocketState::On;
   tcb->m_ecnMode = TcpSocketState::DctcpEcn;
-  tcb->m_ectCodePoint = TcpSocketState::Ect0;   // ECT(1) has no meaning so far
+  tcb->m_ectCodePoint = useECT0 ? TcpSocketState::Ect0 : TcpSocketState::Ect1;
   initialized = true;
 }
 

@@ -88,6 +88,7 @@ private:
   uint32_t bytesACKedECE;           //!< Number of acked bytes which are marked ECE
   SequenceNumber32 seqNextSend;     //!< Sequence number of the next byte in tx sequence
   bool seqNextSendValid;            //!< Is seqNextSend valid
+  bool useECT0;                     //!< True if using ECT(0), false if using ECT(1)
 
   TracedCallback<uint32_t, uint32_t, double> traceDctcpUpdate;
 };

@@ -161,6 +161,7 @@ void
 TcpDctcpMyCodePointsTest::ConfigureEnvironment ()
 {
   TcpGeneralTest::ConfigureEnvironment ();
+  Config::SetDefault ("ns3::TcpDctcpMy::UseEct0", BooleanValue (false));
 }
 
 /**
