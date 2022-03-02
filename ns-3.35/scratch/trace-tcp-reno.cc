@@ -241,7 +241,7 @@ main (int argc, char *argv[])
   // get queue on switch T, using simplest FIFO queue
   TrafficControlHelper fifo;
   fifo.SetRootQueueDisc ("ns3::FifoQueueDisc",
-                         "MaxSize", QueueSize ("1000p"));
+                         "MaxSize", QueueSizeValue (QueueSize ("1000p")));
   for (size_t i = 0; i < 20; ++i)
     fifo.Install (devSTs[i].Get (1));
   QueueDiscContainer queues = fifo.Install (devTR.Get (0));
