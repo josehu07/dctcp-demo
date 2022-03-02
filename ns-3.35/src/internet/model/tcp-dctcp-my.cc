@@ -52,7 +52,7 @@ TypeId TcpDctcpMy::GetTypeId ()
     .AddAttribute ("UseEct0",
                    "Use ECT(0) for ECN codepoint, if false use ECT(1)",
                    BooleanValue (true),     // set to false in testing
-                   MakeBooleanAccessor (&TcpDctcp::useECT0),
+                   MakeBooleanAccessor (&TcpDctcpMy::useECT0),
                    MakeBooleanChecker ())
     .AddTraceSource ("DctcpUpdate",
                      "Update sender-side congestion estimate variables",
