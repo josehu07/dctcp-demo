@@ -28,7 +28,7 @@ simulation:
 	cd $(NSDIR) && \
 		./waf --run scratch/trace-tcp-reno | tee $(ROOTDIR)/trace-tcp-reno.log
 	@echo
-	@echo "=== Running My DCTCP ==="
+	@echo "=== Running Demo DCTCP ==="
 	@echo
 	cd $(NSDIR) && \
 		./waf --run scratch/trace-dctcp-my | tee $(ROOTDIR)/trace-dctcp-my.log
