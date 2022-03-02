@@ -53,7 +53,7 @@ main (int argc, char *argv[])
   Time convergenceTime = Seconds (3);
   Time measurementWindow = Seconds (1);
   bool enableSwitchEcn = true;
-  std::string clientDataRate = "2Gbps";
+  std::string clientDataRate = "10Gbps";
   Time progressInterval = MilliSeconds (100);
 
   CommandLine cmd (__FILE__);
