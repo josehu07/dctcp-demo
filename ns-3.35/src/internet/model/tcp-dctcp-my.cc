@@ -1,4 +1,3 @@
-/* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
  * Guanzhou Hu @ UW-Madison, CS740, Spring 2022
  *
@@ -247,7 +246,8 @@ TcpDctcpMy::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   if (tcb->m_lastAckedSeq < seqNextSend)
     return;   // not yet the end of current observation window
 
-  // step 5, section 3.3, RFC 8257: compute congestion level
+  // step 5, section 3.3, RFC 8257: compute congestion fraction of this
+  // observation window
   double fracF = 0.0;
   if (bytesACKedAll > 0)
     fracF = static_cast<double> (bytesACKedECE * 1.0 / bytesACKedAll);
