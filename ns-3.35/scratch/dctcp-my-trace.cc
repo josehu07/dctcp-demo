@@ -173,7 +173,7 @@ main (int argc, char *argv[])
 
   // simulation
   Time progressInterval = MilliSeconds (100);
-  sinks[0]->TraceConnectWithoutContext ("Rx", MakeNullCallback (&TraceSink));
+  sinks[0]->TraceConnectWithoutContext ("Rx", MakeCallback (&TraceSink));
   Simulator::Schedule (progressInterval, &PrintProgress, progressInterval, queues.Get (0));
   Simulator::Stop (stopTime + TimeStep (1));
   Simulator::Run ();
