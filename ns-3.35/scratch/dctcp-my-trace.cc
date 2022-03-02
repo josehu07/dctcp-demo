@@ -268,7 +268,7 @@ main (int argc, char *argv[])
   address.SetBase ("10.1.1.0", "255.255.255.0");
   for (size_t i = 0; i < 20; ++i) {
     intfSTs.push_back (address.Assign (devSTs[i]));
-    // address.NewAddress ();
+    address.NewAddress ();
   }
   Ipv4InterfaceContainer intfTR = address.Assign (devTR);
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
@@ -279,8 +279,8 @@ main (int argc, char *argv[])
   for (size_t i = 0; i < 20; ++i) {
     // sink application on receiver R
     uint16_t port = 50000 + i;
-    Address sinkLocalAddr (InetSocketAddress (Ipv4Address::GetAny (), port));
-    PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", sinkLocalAddr);
+    Address sinkAddr (InetSocketAddress (intfTR.GetAddress (1), port));
+    PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), port));
     ApplicationContainer sinkApp = sinkHelper.Install (nodeR);
     Ptr<PacketSink> sink = sinkApp.Get (0)->GetObject<PacketSink> ();
     sinks.push_back (sink);
@@ -291,7 +291,7 @@ main (int argc, char *argv[])
     Ptr<Socket> socket = Socket::CreateSocket (senders.Get (i), TcpSocketFactory::GetTypeId ());
     txSockets.push_back (socket);
     Ptr<SimpleSource> sourceApp = CreateObject<SimpleSource> ();
-    sourceApp->Setup (socket, sinkLocalAddr, 1000, DataRate ("1Gbps"));
+    sourceApp->Setup (socket, sinkAddr, 1000, DataRate ("1Gbps"));
     senders.Get (i)->AddApplication (sourceApp);
     sourceApp->SetStartTime (startTime + i * flowStartupWindow / 20);
     sourceApp->SetStopTime (stopTime);
