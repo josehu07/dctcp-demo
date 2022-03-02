@@ -24,6 +24,9 @@
 using namespace ns3;
 
 
+uint64_t rxSinkBytes = 0;
+
+
 // Queue length at switch T.
 static uint32_t
 GetQueueLen (Ptr<QueueDisc> queue)
@@ -38,13 +41,21 @@ GetQueueLen (Ptr<QueueDisc> queue)
 
 // }
 
+static void
+TraceSink(Ptr<const Packet> p, const Address& a)
+{
+  rxSinkBytes += p->GetSize ();
+}
+
 void
 PrintProgress (Time interval, Ptr<QueueDisc> queue)
 {
   uint32_t queueLen = GetQueueLen(queue);
   std::cout << std::fixed << std::setprecision (1)
             << Simulator::Now ().GetSeconds () << " "
-            << queueLen << std::endl;
+            << queueLen << " "
+            << rxSinkBytes << " "
+            << std::endl;
   Simulator::Schedule (interval, &PrintProgress, interval, queue);
 }
 
@@ -134,6 +145,7 @@ main (int argc, char *argv[])
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
   // create dummy applications on hosts
+  std::vector<Ptr<PacketSink>> sinks;
   for (size_t i = 0; i < 20; ++i) {
     // sink application on receiver R
     uint16_t port = 50000 + i;
@@ -141,6 +153,7 @@ main (int argc, char *argv[])
     PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", sinkLocalAddr);
     ApplicationContainer sinkApp = sinkHelper.Install (nodeR);
     Ptr<PacketSink> sink = sinkApp.Get (0)->GetObject<PacketSink> ();
+    sinks.push_back (sink);
     sinkApp.Start (startTime);
     sinkApp.Stop (stopTime);
 
@@ -160,6 +173,7 @@ main (int argc, char *argv[])
 
   // simulation
   Time progressInterval = MilliSeconds (100);
+  sinks[0]->TraceConnectWithoutContext ("Rx", MakeBoundCallback (&TraceSink));
   Simulator::Schedule (progressInterval, &PrintProgress, progressInterval, queues.Get (0));
   Simulator::Stop (stopTime + TimeStep (1));
   Simulator::Run ();
