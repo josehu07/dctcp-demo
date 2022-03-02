@@ -31,13 +31,13 @@ uint32_t cwndSizeS0 = 0;
 // Sinked bytes on receiver app.
 std::vector<uint64_t> rxSinkBytes(20, 0);
 
-static void
+void
 TraceCwndSizeS0 (uint32_t old_cwnd, uint32_t new_cwnd)
 {
   cwndSizeS0 = new_cwnd;
 }
 
-static void
+void
 TraceRxSinkBytes (size_t i, Ptr<const Packet> p, const Address& a)
 {
   rxSinkBytes[i] += p->GetSize ();
